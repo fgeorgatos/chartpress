@@ -110,7 +110,7 @@ def build_image(image_path, image_name, build_args=None, dockerfile_path=None):
     subprocess.check_call(cmd)
 
 
-def build_images(prefix, images, tag=None, commit_range=None, push=False, skip_build=False):
+def build_images(prefix, images, tag=None, commit_range=None, push=False, skip_build=False, z2jh_name=False):
     """Build a collection of docker images
 
     Args:
@@ -142,10 +142,11 @@ def build_images(prefix, images, tag=None, commit_range=None, push=False, skip_b
         # kubernetes/charts use 'repository'. Support both.
         # FIXME: Standardize on `repository` in the long term
         value_modifications[options['valuesPath']] = {
-            'name': image_name,
             'repository': image_name,
             'tag': image_tag,
         }
+        if z2jh_name:
+            value_modifications[options['valuesPath']].update([('name', image_name)])
 
         if tag is None and commit_range and not path_touched(*paths, commit_range=commit_range):
             print(f"Skipping {name}, not touched in {commit_range}")
@@ -265,6 +266,8 @@ def main():
         help='publish updated chart to gh-pages')
     argparser.add_argument('--skip-build', action='store_true',
         help='do not build docker images')
+    argparser.add_argument('--z2jh-name', action='store_true',
+        help='use z2jh name')
     argparser.add_argument('--tag', default=None,
         help='Use this tag for images & charts')
     argparser.add_argument('--extra-message', default='',
