@@ -290,6 +290,7 @@ def main():
                 commit_range=args.commit_range,
                 push=args.push,
                 skip_build=args.skip_build,
+                z2jh_name=args.z2jh_name,
             )
             build_values(chart['name'], value_mods)
         chart_paths = ['.'] + chart.get('paths', [])
