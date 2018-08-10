@@ -12,11 +12,15 @@ import shutil
 from tempfile import TemporaryDirectory
 
 from ruamel.yaml import YAML
+from ruamel.yaml.scalarstring import SingleQuotedScalarString
 
-__version__ = '0.2.0.dev'
+__version__ = '0.3.0.dev'
 
 # name of the environment variable with GitHub token
 GITHUB_TOKEN_KEY = 'GITHUB_TOKEN'
+
+# name of possible repository keys used in image value
+IMAGE_REPOSITORY_KEYS = {'name', 'repository'}
 
 # use safe roundtrip yaml loader
 yaml = YAML(typ='rt')
@@ -42,6 +46,7 @@ def last_modified_commit(*paths, **kwargs):
         'log',
         '-n', '1',
         '--pretty=format:%h',
+        '--',
         *paths
     ], **kwargs).decode('utf-8')
 
@@ -54,6 +59,7 @@ def last_modified_date(*paths, **kwargs):
         '-n', '1',
         '--pretty=format:%cd',
         '--date=iso',
+        '--',
         *paths
     ], **kwargs).decode('utf-8')
 
@@ -70,7 +76,7 @@ def path_touched(*paths, commit_range):
         range of commits to check if paths have changed
     """
     return subprocess.check_output([
-        'git', 'diff', '--name-only', commit_range, *paths
+        'git', 'diff', '--name-only', commit_range, '--', *paths
     ]).decode('utf-8').strip() != ''
 
 
@@ -131,19 +137,18 @@ def build_images(prefix, images, tag=None, commit_range=None, push=False, skip_b
     for name, options in images.items():
         image_path = options.get('contextPath', os.path.join('images', name))
         image_tag = tag
-        paths = options.get('paths', []) + [image_path]
+        # include chartpress.yaml itself as it can contain build args and
+        # similar that influence the image that would be built
+        paths = options.get('paths', []) + [image_path, 'chartpress.yaml']
         last_commit = last_modified_commit(*paths)
         if tag is None:
             image_tag = last_commit
         image_name = prefix + name
         image_spec = '{}:{}'.format(image_name, image_tag)
 
-        # z2jh charts use 'name' to specify image repository, while
-        # kubernetes/charts use 'repository'. Support both.
-        # FIXME: Standardize on `repository` in the long term
         value_modifications[options['valuesPath']] = {
             'repository': image_name,
-            'tag': image_tag,
+            'tag': SingleQuotedScalarString(image_tag),
         }
         if z2jh_name:
             value_modifications[options['valuesPath']].update([('name', image_name)])
@@ -181,7 +186,23 @@ def build_values(name, values_mods):
         for p in parts:
             mod_obj = mod_obj[p]
         print(f"Updating {values_file}: {key}: {value}")
-        mod_obj.update(value)
+
+        if isinstance(mod_obj, dict):
+            keys = IMAGE_REPOSITORY_KEYS & mod_obj.keys()
+            if keys:
+                for key in keys:
+                    mod_obj[key] = value['repository']
+            else:
+                possible_keys = ' or '.join(IMAGE_REPOSITORY_KEYS)
+                raise KeyError(
+                    f'Could not find {possible_keys} in {values_file}:{key}'
+                )
+
+            mod_obj['tag'] = value['tag']
+        else:
+            raise TypeError(
+                f'The key {key} in {values_file} must be a mapping.'
+            )
 
 
     with open(values_file, 'w') as f:
@@ -272,7 +293,7 @@ def main():
         help='Use this tag for images & charts')
     argparser.add_argument('--extra-message', default='',
         help='extra message to add to the commit message when publishing charts')
-    argparser.add_argument('--set-prefix', default='',
+    argparser.add_argument('--image-prefix', default=None,
         help='override image prefix with this value')
 
     args = argparser.parse_args()
@@ -282,7 +303,7 @@ def main():
 
     for chart in config['charts']:
         if 'images' in chart:
-            image_prefix = args.set_prefix if args.set_prefix != '' else chart['imagePrefix']
+            image_prefix = args.image_prefix if args.image_prefix is not None else chart['imagePrefix']
             value_mods = build_images(
                 prefix=image_prefix,
                 images=chart['images'],
