@@ -116,7 +116,7 @@ def build_image(image_path, image_name, build_args=None, dockerfile_path=None):
     subprocess.check_call(cmd)
 
 
-def build_images(prefix, images, tag=None, commit_range=None, push=False, skip_build=False, z2jh_name=False):
+def build_images(prefix, images, tag=None, commit_range=None, push=False, skip_build=False):
     """Build a collection of docker images
 
     Args:
@@ -150,8 +150,6 @@ def build_images(prefix, images, tag=None, commit_range=None, push=False, skip_b
             'repository': image_name,
             'tag': SingleQuotedScalarString(image_tag),
         }
-        if z2jh_name:
-            value_modifications[options['valuesPath']].update([('name', image_name)])
 
         if tag is None and commit_range and not path_touched(*paths, commit_range=commit_range):
             print(f"Skipping {name}, not touched in {commit_range}")
@@ -287,8 +285,6 @@ def main():
         help='publish updated chart to gh-pages')
     argparser.add_argument('--skip-build', action='store_true',
         help='do not build docker images')
-    argparser.add_argument('--z2jh-name', action='store_true',
-        help='use z2jh name')
     argparser.add_argument('--tag', default=None,
         help='Use this tag for images & charts')
     argparser.add_argument('--extra-message', default='',
@@ -311,7 +307,6 @@ def main():
                 commit_range=args.commit_range,
                 push=args.push,
                 skip_build=args.skip_build,
-                z2jh_name=args.z2jh_name,
             )
             build_values(chart['name'], value_mods)
         chart_paths = ['.'] + chart.get('paths', [])
