@@ -117,7 +117,7 @@ def build_image(image_path, image_name, build_args=None, dockerfile_path=None):
     subprocess.check_call(cmd)
 
 
-def build_images(prefix, images, tag=None, commit_range=None, push=False):
+def build_images(prefix, images, tag=None, commit_range=None, push=False, skip_build=False):
     """Build a collection of docker images
 
     Args:
@@ -162,7 +162,8 @@ def build_images(prefix, images, tag=None, commit_range=None, push=False):
         }
 
         build_args = render_build_args(options, template_namespace)
-        build_image(image_path, image_spec, build_args, options.get('dockerfilePath'))
+        if not skip_build:
+            build_image(image_path, image_spec, build_args, options.get('dockerfilePath'))
 
         if push:
             subprocess.check_call([
@@ -283,6 +284,8 @@ def main():
         help='push built images to docker hub')
     argparser.add_argument('--publish-chart', action='store_true',
         help='publish updated chart to gh-pages')
+    argparser.add_argument('--skip-build', action='store_true',
+        help='do not build docker images')
     argparser.add_argument('--tag', default=None,
         help='Use this tag for images & charts')
     argparser.add_argument('--extra-message', default='',
@@ -304,6 +307,7 @@ def main():
                 tag=args.tag,
                 commit_range=args.commit_range,
                 push=args.push,
+                skip_build=args.skip_build,
             )
             build_values(chart['name'], value_mods)
         chart_paths = ['.'] + list(chart.get('paths', []))
