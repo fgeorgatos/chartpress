@@ -25,6 +25,7 @@ IMAGE_REPOSITORY_KEYS = {'name', 'repository'}
 
 # use safe roundtrip yaml loader
 yaml = YAML(typ='rt')
+yaml.preserve_quotes = True
 yaml.indent(mapping=2, offset=2, sequence=4)
 
 
